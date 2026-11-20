@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { Brand } from "@/components/ui/Brand";
 import { fadeUp } from "@/lib/motion";
 
 export function AuthCard({
@@ -34,8 +35,8 @@ export function AuthCard({
         className="w-full max-w-md space-y-6 rounded-xl border border-border bg-surface p-6 shadow-lg sm:p-8"
       >
         <div className="space-y-2">
-          <Link to="/" className="font-display text-lg font-semibold text-primary">
-            SmartDine
+          <Link to="/" aria-label="SmartDine home">
+            <Brand size="sm" />
           </Link>
           <h1 className="font-display text-3xl font-semibold">{title}</h1>
           <p className="text-sm text-muted-foreground">{subtitle}</p>

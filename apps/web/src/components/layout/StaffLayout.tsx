@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { NAV_GROUPS, navItemsFor } from "@/components/navigation/staffNav";
+import { Brand } from "@/components/ui/Brand";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -52,9 +53,7 @@ export function StaffLayout() {
         className="sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border bg-surface lg:flex"
       >
         <div className="flex h-16 items-center justify-between px-4">
-          {!collapsed && (
-            <span className="font-display text-lg font-semibold text-primary">SmartDine</span>
-          )}
+          {!collapsed && <Brand size="sm" />}
           <Button
             variant="ghost"
             size="icon"

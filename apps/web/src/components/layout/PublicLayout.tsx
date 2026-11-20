@@ -9,6 +9,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { ROLE_HOME } from "@/features/auth/utils/roleHome";
 import { BranchPicker } from "@/features/public/components/BranchPicker";
 import { usePublicBranch } from "@/features/public/hooks/usePublicBranch";
+import { Brand } from "@/components/ui/Brand";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -60,8 +61,8 @@ function Header() {
       <div className="mx-auto max-w-6xl px-3 pt-3 sm:px-6">
         <div className="rounded-full border border-border bg-surface/90 shadow-lg backdrop-blur-xl">
           <div className="flex h-14 items-center justify-between gap-3 pr-2 pl-5">
-            <Link to="/" className="font-display text-xl font-semibold tracking-tight text-primary">
-              SmartDine
+            <Link to="/" aria-label="SmartDine home">
+              <Brand />
             </Link>
             <nav aria-label="Main" className="hidden items-center gap-0.5 lg:flex">
               {NAV.map(({ to, label, ...rest }) => (
