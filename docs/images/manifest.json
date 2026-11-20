@@ -1,0 +1,350 @@
+[
+  {
+    "group": "Public website",
+    "name": "home",
+    "title": "Home",
+    "path": "/"
+  },
+  {
+    "group": "Public website",
+    "name": "menu",
+    "title": "Menu",
+    "path": "/menu"
+  },
+  {
+    "group": "Public website",
+    "name": "reservations",
+    "title": "Table reservations",
+    "path": "/reservations"
+  },
+  {
+    "group": "Public website",
+    "name": "reservations-private",
+    "title": "Private dining",
+    "path": "/reservations?tab=private"
+  },
+  {
+    "group": "Public website",
+    "name": "rooms",
+    "title": "Rooms",
+    "path": "/rooms"
+  },
+  {
+    "group": "Public website",
+    "name": "offers",
+    "title": "Offers",
+    "path": "/offers"
+  },
+  {
+    "group": "Public website",
+    "name": "about",
+    "title": "About",
+    "path": "/about"
+  },
+  {
+    "group": "Public website",
+    "name": "gallery",
+    "title": "Gallery",
+    "path": "/gallery"
+  },
+  {
+    "group": "Public website",
+    "name": "contact",
+    "title": "Contact",
+    "path": "/contact"
+  },
+  {
+    "group": "Public website",
+    "name": "login",
+    "title": "Sign in",
+    "path": "/login"
+  },
+  {
+    "group": "Public website",
+    "name": "register",
+    "title": "Create account",
+    "path": "/register"
+  },
+  {
+    "group": "Public website",
+    "name": "not-found",
+    "title": "Page not found",
+    "path": "/this-page-does-not-exist"
+  },
+  {
+    "group": "Public website",
+    "name": "room-details",
+    "title": "Room details",
+    "path": "/rooms/standard-room?checkIn=2026-11-21&checkOut=2026-11-23&adults=2&children=0"
+  },
+  {
+    "group": "Public website",
+    "name": "room-booking",
+    "title": "Room booking",
+    "path": "/rooms/standard-room?checkIn=2026-11-21&checkOut=2026-11-23&adults=2&children=0/book"
+  },
+  {
+    "group": "Ordering from the table",
+    "name": "menu-ordering",
+    "title": "Menu with the order panel",
+    "path": "/menu"
+  },
+  {
+    "group": "Ordering from the table",
+    "name": "menu-order-sent",
+    "title": "Order sent to the kitchen",
+    "path": "/menu"
+  },
+  {
+    "group": "Customer account",
+    "name": "account-reservations",
+    "title": "My reservations",
+    "path": "/account/reservations"
+  },
+  {
+    "group": "Customer account",
+    "name": "account-stays",
+    "title": "My stays",
+    "path": "/account/stays"
+  },
+  {
+    "group": "Customer account",
+    "name": "account-favourites",
+    "title": "Favourites",
+    "path": "/account/favourites"
+  },
+  {
+    "group": "Customer account",
+    "name": "account-loyalty",
+    "title": "Loyalty points",
+    "path": "/account/loyalty"
+  },
+  {
+    "group": "Customer account",
+    "name": "account-invoices",
+    "title": "Invoices",
+    "path": "/account/invoices"
+  },
+  {
+    "group": "Customer account",
+    "name": "account-reviews",
+    "title": "My reviews",
+    "path": "/account/reviews"
+  },
+  {
+    "group": "Customer account",
+    "name": "account-profile",
+    "title": "Profile",
+    "path": "/account/profile"
+  },
+  {
+    "group": "Customer account",
+    "name": "account-invoice",
+    "title": "Invoice and receipt",
+    "path": "/account/invoices/7b2886c2-8978-4dd5-a1ed-5d5b843dfec8"
+  },
+  {
+    "group": "Dashboards",
+    "name": "waiter-dashboard",
+    "title": "Waiter dashboard",
+    "path": "/app/waiter"
+  },
+  {
+    "group": "Dashboards",
+    "name": "kitchen-display",
+    "title": "Kitchen display",
+    "path": "/app/kitchen"
+  },
+  {
+    "group": "Dashboards",
+    "name": "cashier-dashboard",
+    "title": "Cashier dashboard",
+    "path": "/app/cashier"
+  },
+  {
+    "group": "Cashier",
+    "name": "cashier-bill",
+    "title": "Bill",
+    "path": "/app/cashier/bills/1f5506d2-da59-48d2-ae0f-9172845e0816"
+  },
+  {
+    "group": "Cashier",
+    "name": "payments",
+    "title": "Payments history",
+    "path": "/app/payments"
+  },
+  {
+    "group": "Cashier",
+    "name": "receipt",
+    "title": "Receipt",
+    "path": "/app/receipts/2c65ad59-30d9-4655-83f3-eff0ad39d685"
+  },
+  {
+    "group": "Dashboards",
+    "name": "owner-dashboard",
+    "title": "Owner dashboard",
+    "path": "/app/owner"
+  },
+  {
+    "group": "Dashboards",
+    "name": "manager-dashboard",
+    "title": "Manager dashboard",
+    "path": "/app/manager"
+  },
+  {
+    "group": "Back office",
+    "name": "orders",
+    "title": "Orders",
+    "path": "/app/orders"
+  },
+  {
+    "group": "Back office",
+    "name": "new-order",
+    "title": "New order",
+    "path": "/app/orders/new"
+  },
+  {
+    "group": "Back office",
+    "name": "floor-plan",
+    "title": "Floor plan",
+    "path": "/app/floor-plan"
+  },
+  {
+    "group": "Back office",
+    "name": "staff-reservations",
+    "title": "Reservations",
+    "path": "/app/reservations"
+  },
+  {
+    "group": "Back office",
+    "name": "private-dining",
+    "title": "Private dining",
+    "path": "/app/private-dining"
+  },
+  {
+    "group": "Back office",
+    "name": "menu-admin",
+    "title": "Menu management",
+    "path": "/app/menu"
+  },
+  {
+    "group": "Back office",
+    "name": "rooms-overview",
+    "title": "Rooms overview",
+    "path": "/app/rooms"
+  },
+  {
+    "group": "Back office",
+    "name": "room-bookings",
+    "title": "Room bookings",
+    "path": "/app/rooms/bookings"
+  },
+  {
+    "group": "Back office",
+    "name": "room-inventory",
+    "title": "Room inventory",
+    "path": "/app/rooms/inventory"
+  },
+  {
+    "group": "Back office",
+    "name": "room-types",
+    "title": "Room types",
+    "path": "/app/rooms/types"
+  },
+  {
+    "group": "Back office",
+    "name": "housekeeping",
+    "title": "Housekeeping",
+    "path": "/app/housekeeping"
+  },
+  {
+    "group": "Back office",
+    "name": "inventory",
+    "title": "Stock",
+    "path": "/app/inventory"
+  },
+  {
+    "group": "Back office",
+    "name": "stock-history",
+    "title": "Stock history",
+    "path": "/app/inventory/history"
+  },
+  {
+    "group": "Back office",
+    "name": "suppliers",
+    "title": "Suppliers",
+    "path": "/app/suppliers"
+  },
+  {
+    "group": "Back office",
+    "name": "customers",
+    "title": "Customers",
+    "path": "/app/customers"
+  },
+  {
+    "group": "Back office",
+    "name": "reviews",
+    "title": "Reviews",
+    "path": "/app/reviews"
+  },
+  {
+    "group": "Back office",
+    "name": "promotions",
+    "title": "Promotions",
+    "path": "/app/promotions"
+  },
+  {
+    "group": "Back office",
+    "name": "staff",
+    "title": "Staff",
+    "path": "/app/staff"
+  },
+  {
+    "group": "Back office",
+    "name": "shifts",
+    "title": "Shifts",
+    "path": "/app/shifts"
+  },
+  {
+    "group": "Back office",
+    "name": "branches",
+    "title": "Branches",
+    "path": "/app/branches"
+  },
+  {
+    "group": "Back office",
+    "name": "reports",
+    "title": "Reports",
+    "path": "/app/reports"
+  },
+  {
+    "group": "Back office",
+    "name": "audit",
+    "title": "Audit log",
+    "path": "/app/audit"
+  },
+  {
+    "group": "Back office",
+    "name": "settings",
+    "title": "Settings",
+    "path": "/app/settings"
+  },
+  {
+    "group": "Back office",
+    "name": "staff-profile",
+    "title": "Staff profile",
+    "path": "/app/profile"
+  },
+  {
+    "group": "Back office",
+    "name": "order-detail",
+    "title": "Order details",
+    "path": "/app/orders/e13b9d1d-c3f9-49a0-b14d-f790339508dc"
+  },
+  {
+    "group": "Back office",
+    "name": "customer-detail",
+    "title": "Customer details",
+    "path": "/app/customers/bca913e9-29d8-4edd-b7b7-17c376872156"
+  }
+]
