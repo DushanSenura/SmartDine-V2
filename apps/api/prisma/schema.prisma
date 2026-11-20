@@ -984,7 +984,7 @@ enum PaymentMethod {
 /// changes never alter an existing bill. Financial rows are never deleted by application code.
 model Bill {
   id                   String        @id @default(uuid()) @db.Uuid
-  /// "B-YYYYMMDD-NNN", sequential per branch and day.
+  /// "B-" + the order number (e.g. "B-20261104-007"), so order, bill and receipt match.
   billNumber           String        @db.VarChar(24)
   branchId             String        @db.Uuid
   orderId              String        @unique @db.Uuid
@@ -1085,7 +1085,7 @@ model Receipt {
   id            String   @id @default(uuid()) @db.Uuid
   billId        String   @unique @db.Uuid
   branchId      String   @db.Uuid
-  /// "R-YYYYMMDD-NNN", sequential per branch and day.
+  /// "R-" + the order number (e.g. "R-20261104-007").
   receiptNumber String   @db.VarChar(24)
   data          Json
   issuedAt      DateTime @default(now())

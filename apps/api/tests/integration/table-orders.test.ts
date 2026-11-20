@@ -69,7 +69,29 @@ describe("customers ordering from their table", () => {
       .expect(200);
     await api("post", `/orders/${placed.body.data.id}/serve`, w.waiter.token).send({}).expect(200);
     await api("post", `/orders/${placed.body.data.id}/request-payment`, w.waiter.token).expect(200);
-    await api("post", "/bills", w.cashier.token).send({ orderId: placed.body.data.id }).expect(200);
+    const bill = await api("post", "/bills", w.cashier.token)
+      .send({ orderId: placed.body.data.id })
+      .expect(200);
+
+    // The cashier finds the guest already selected on the bill, with no searching.
+    expect(bill.body.data.customer).toMatchObject({ id: customer.userId });
+
+    // Once the bill is paid, the invoice shows up in the customer's own account.
+    expect((await api("get", "/customers/me/invoices", customer.token)).body.data).toEqual([]);
+    await api("post", `/bills/${bill.body.data.id}/payments`, w.cashier.token)
+      .send({ method: "CASH", amount: bill.body.data.total })
+      .expect(201);
+    const invoices = await api("get", "/customers/me/invoices", customer.token).expect(200);
+    expect(invoices.body.data).toHaveLength(1);
+    expect(invoices.body.data[0]).toMatchObject({ total: bill.body.data.total });
+
+    // Order, bill and receipt carry the same number, so one visit is easy to match up.
+    const orderNumber = placed.body.data.orderNumber as string;
+    expect(bill.body.data.billNumber).toBe(`B-${orderNumber}`);
+    const receipt = await prisma.receipt.findUniqueOrThrow({
+      where: { billId: bill.body.data.id },
+    });
+    expect(receipt.receiptNumber).toBe(`R-${orderNumber}`);
 
     const mine = await api("get", "/table-orders/mine", customer.token).expect(200);
     expect(mine.body.data[0]).toMatchObject({ id: placed.body.data.id });

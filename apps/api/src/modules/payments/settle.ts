@@ -4,7 +4,7 @@ import { AppError } from "../../shared/errors/AppError";
 import { postPoints } from "../customers/loyalty";
 import { record } from "../orders/order.service";
 import { bestMultiplier } from "../promotions/promotion.rules";
-import { lockKey, nextNumber, type Tx } from "./numbering";
+import { receiptNumberFor, type Tx } from "./numbering";
 import { billInclude, billLines, locationOf } from "./payment.mapper";
 
 const fullName = (u: { firstName: string; lastName: string }) => `${u.firstName} ${u.lastName}`;
@@ -37,8 +37,6 @@ export async function settleBill(tx: Tx, billId: string, cashierId: string) {
   );
   await record(tx, bill.orderId, cashierId, "PAID", "COMPLETED", null);
 
-  // Receipt numbers are sequential per branch and day, so allocate under the branch lock.
-  await lockKey(tx, bill.branchId);
   const [branch, company, settings, cashier] = await Promise.all([
     tx.branch.findUniqueOrThrow({ where: { id: bill.branchId } }),
     tx.company.findFirstOrThrow({ where: { deletedAt: null } }),
@@ -48,7 +46,7 @@ export async function settleBill(tx: Tx, billId: string, cashierId: string) {
       select: { firstName: true, lastName: true },
     }),
   ]);
-  const receiptNumber = await nextNumber(tx, "receipt", bill.branchId, branch.timezone);
+  const receiptNumber = receiptNumberFor(bill.order.orderNumber);
 
   const data: Omit<ReceiptDto, "id"> = {
     receiptNumber,

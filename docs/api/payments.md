@@ -62,7 +62,7 @@ payment.
 
 - Two cashiers paying at once cannot double-charge: exactly one succeeds, the rest get `409`
   (`OVERPAYMENT` / `BILL_CLOSED`) — covered by a concurrency test.
-- Bill and receipt numbers (`B-YYYYMMDD-NNN`, `R-YYYYMMDD-NNN`) are unique per branch under concurrency.
+- Bill and receipt numbers reuse the order's number, so one visit carries one number: order `20261104-007`, bill `B-20261104-007`, receipt `R-20261104-007`. Order numbers are unique per branch, so these are too. Bills and receipts issued before this rule keep their old numbers.
 - Once money has been taken the order is frozen (`ORDER_HAS_PAYMENTS`): dishes cannot be added or cancelled
   and the order cannot be voided until the payments are refunded. Voiding an unpaid order voids its bill.
 - A discount is locked after the first payment.

@@ -31,7 +31,7 @@ import {
   releasePromotion,
   reservePromotionUse,
 } from "../promotions/promotion.rules";
-import { nextNumber } from "./numbering";
+import { billNumberFor } from "./numbering";
 import {
   billInclude,
   locationOf,
@@ -249,7 +249,7 @@ export const billService = {
         });
         const bill = await tx.bill.create({
           data: {
-            billNumber: await nextNumber(tx, "bill", order.branchId, order.branch.timezone),
+            billNumber: billNumberFor(order.orderNumber),
             branchId: order.branchId,
             orderId,
             ...amountData(amounts),
@@ -257,6 +257,9 @@ export const billService = {
             taxPercent,
             currency: order.branch.currency,
             roomBookingId: order.roomBookingId,
+            // A guest who ordered from their own account is already the bill's customer: the
+            // cashier sees their name selected, and the invoice lands in their account.
+            customerId: order.placedByUserId,
             createdById: auth.userId,
           },
         });
