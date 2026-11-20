@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="apps/web/public/images/logo-640.png" alt="SmartDine V2 logo: a serving cloche with circuit lines, fork and spoon" width="220" />
+<img src="apps/web/public/images/Logo without background.png" alt="SmartDine V2 logo: a serving cloche with circuit lines, fork and spoon" width="220" />
 
 # SmartDine V2
 
