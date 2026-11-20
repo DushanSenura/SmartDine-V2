@@ -1,0 +1,18 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [".env"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["AUTH_RATE_LIMIT_MAX", "BOOKING_RATE_LIMIT_MAX"]
+    },
+    "lint": {},
+    "typecheck": {},
+    "test": {}
+  }
+}

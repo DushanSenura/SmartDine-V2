@@ -1,0 +1,1420 @@
+// SmartDine V2 — Prisma schema.
+// Each phase extends this schema through its own migration.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Company & branches ─────────────────────────
+
+enum BranchStatus {
+  OPEN
+  CLOSED
+  TEMPORARILY_CLOSED
+  MAINTENANCE
+}
+
+model Company {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  currency  String    @default("LKR") @db.VarChar(3)
+  timezone  String    @default("Asia/Colombo")
+  logoUrl   String?
+  address   String?
+  phone     String?
+  email     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  branches Branch[]
+  settings CompanySettings?
+  shifts   Shift[]
+
+  @@map("companies")
+}
+
+model CompanySettings {
+  id                         String   @id @default(uuid()) @db.Uuid
+  companyId                  String   @unique @db.Uuid
+  taxRatePercent             Decimal  @default(0) @db.Decimal(5, 2)
+  serviceChargePercent       Decimal  @default(10) @db.Decimal(5, 2)
+  reservationDurationMinutes Int      @default(90)
+  cancellationWindowHours    Int      @default(24)
+  receiptFooter              String?
+  /// Share of a room booking's total due to secure it.
+  roomDepositPercent         Decimal  @default(20) @db.Decimal(5, 2)
+  loyaltyEnabled             Boolean  @default(false)
+  /// Money spent per point earned (LKR 100 = 1 point).
+  loyaltyCurrencyPerPoint    Decimal  @default(100) @db.Decimal(10, 2)
+  /// Money one point is worth when redeemed.
+  loyaltyPointValue          Decimal  @default(1) @db.Decimal(10, 2)
+  checkInTime                String   @default("14:00") @db.VarChar(5)
+  checkOutTime               String   @default("11:00") @db.VarChar(5)
+  updatedAt                  DateTime @updatedAt
+
+  company                     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Largest discount (% of subtotal) a cashier may give without a manager.
+  cashierDiscountLimitPercent Decimal         @default(10) @db.Decimal(5, 2)
+  /// Methods the till accepts. Loyalty points are governed by the loyalty switch instead.
+  enabledPaymentMethods       PaymentMethod[] @default([CASH, CREDIT_CARD, DEBIT_CARD, MOBILE_PAYMENT, BANK_TRANSFER, ROOM_CHARGE])
+
+  @@map("company_settings")
+}
+
+model Branch {
+  id           String       @id @default(uuid()) @db.Uuid
+  companyId    String       @db.Uuid
+  name         String
+  code         String       @unique @db.VarChar(16)
+  status       BranchStatus @default(OPEN)
+  address      String?
+  city         String?
+  phone        String?
+  email        String?
+  timezone     String       @default("Asia/Colombo")
+  currency     String       @default("LKR") @db.VarChar(3)
+  /// { mon: { open: "09:00", close: "22:00" } | null, ... } — null means closed that day.
+  openingHours Json?
+  latitude     Decimal?     @db.Decimal(9, 6)
+  longitude    Decimal?     @db.Decimal(9, 6)
+  managerId    String?      @db.Uuid
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  company           Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  manager           User?                   @relation("BranchManager", fields: [managerId], references: [id], onDelete: SetNull)
+  staff             User[]                  @relation("BranchStaff")
+  diningAreas       DiningArea[]
+  tables            RestaurantTable[]
+  privateRooms      PrivateDiningRoom[]
+  scheduledShifts   ScheduledShift[]
+  attendance        Attendance[]
+  menuItems         MenuItem[]
+  reservations      RestaurantReservation[]
+  roomTypes         RoomType[]
+  rooms             Room[]
+  roomExtras        RoomExtra[]
+  roomBookings      RoomBooking[]
+  housekeeping      HousekeepingTask[]
+  orders            Order[]
+  serviceRequests   ServiceRequest[]
+  bills             Bill[]
+  payments          Payment[]
+  receipts          Receipt[]
+  inventoryItems    InventoryItem[]
+  stockTransactions StockTransaction[]
+  reviews           Review[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([managerId])
+  @@map("branches")
+}
+
+// ───────────────────────── Auth & users ─────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(32)
+  description String?
+  createdAt   DateTime @default(now())
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid()) @db.Uuid
+  key         String  @unique @db.VarChar(64)
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @db.Uuid
+  permissionId String @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  roleId       String     @db.Uuid
+  branchId     String?    @db.Uuid
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  role            Role                    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  branch          Branch?                 @relation("BranchStaff", fields: [branchId], references: [id], onDelete: SetNull)
+  managedBranches Branch[]                @relation("BranchManager")
+  refreshTokens   RefreshToken[]
+  staffProfile    StaffProfile?
+  assignedTables  RestaurantTable[]
+  scheduledShifts ScheduledShift[]
+  attendance      Attendance[]
+  reservations    RestaurantReservation[] @relation("CustomerReservations")
+  roomBookings    RoomBooking[]           @relation("CustomerRoomBookings")
+  housekeeping    HousekeepingTask[]      @relation("AssignedHousekeeping")
+  orders          Order[]                 @relation("OrderWaiter")
+  ordersPlaced    Order[]                 @relation("OrderPlacedBy")
+  orderHistory    OrderHistory[]          @relation("OrderHistoryUser")
+  billsCreated    Bill[]                  @relation("BillCreator")
+  payments        Payment[]               @relation("PaymentCashier")
+  refunds         Refund[]                @relation("RefundUser")
+  customerProfile CustomerProfile?        @relation("CustomerProfileUser")
+  favourites      CustomerFavourite[]     @relation("CustomerFavouriteUser")
+  loyaltyAccount  LoyaltyAccount?         @relation("LoyaltyAccountUser")
+  loyaltyActions  LoyaltyTransaction[]    @relation("LoyaltyStaff")
+  reviews         Review[]                @relation("ReviewAuthor")
+  reviewReplies   Review[]                @relation("ReviewResponder")
+  stockActions    StockTransaction[]      @relation("StockUser")
+  billsAsCustomer Bill[]                  @relation("BillCustomer")
+  notifications   Notification[]          @relation("NotificationRecipient")
+  auditEntries    AuditLog[]              @relation("AuditActor")
+
+  @@index([roleId])
+  @@index([branchId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  /// SHA-256 of the opaque token; the raw token only ever exists in the client cookie.
+  tokenHash String    @unique
+  /// All tokens descended from one login share a family so reuse can revoke the whole chain.
+  familyId  String    @db.Uuid
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ip        String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ───────────────────────── Staff, shifts & attendance ─────────────────────────
+
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  TERMINATED
+}
+
+model StaffProfile {
+  id                    String           @id @default(uuid()) @db.Uuid
+  userId                String           @unique @db.Uuid
+  employeeId            String           @unique @db.VarChar(32)
+  address               String?
+  dateOfBirth           DateTime?        @db.Date
+  department            String?
+  employmentStatus      EmploymentStatus @default(ACTIVE)
+  hireDate              DateTime?        @db.Date
+  profileImageUrl       String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("staff_profiles")
+}
+
+model Shift {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @db.Uuid
+  name      String
+  /// "HH:mm" 24h. A shift whose end is earlier than its start crosses midnight.
+  startTime String   @db.VarChar(5)
+  endTime   String   @db.VarChar(5)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  scheduled ScheduledShift[]
+
+  @@unique([companyId, name])
+  @@map("shifts")
+}
+
+model ScheduledShift {
+  id       String   @id @default(uuid()) @db.Uuid
+  userId   String   @db.Uuid
+  branchId String   @db.Uuid
+  date     DateTime @db.Date
+  /// Null together with dayOff = true marks a day off.
+  shiftId  String?  @db.Uuid
+  dayOff   Boolean  @default(false)
+
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch     Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  shift      Shift?       @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+  attendance Attendance[]
+
+  @@unique([userId, date])
+  @@index([branchId, date])
+  @@map("scheduled_shifts")
+}
+
+model Attendance {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  branchId         String    @db.Uuid
+  scheduledShiftId String?   @db.Uuid
+  clockInAt        DateTime  @default(now())
+  clockOutAt       DateTime?
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  scheduledShift ScheduledShift? @relation(fields: [scheduledShiftId], references: [id], onDelete: SetNull)
+
+  @@index([userId, clockInAt])
+  @@index([branchId, clockInAt])
+  @@map("attendance")
+}
+
+// ───────────────────────── Restaurant floor ─────────────────────────
+
+enum TableStatus {
+  AVAILABLE
+  RESERVED
+  OCCUPIED
+  ORDERING
+  WAITING_FOR_FOOD
+  DINING
+  PAYMENT_PENDING
+  CLEANING
+  OUT_OF_SERVICE
+}
+
+enum TableShape {
+  SQUARE
+  RECTANGLE
+  ROUND
+}
+
+/// A floor / dining zone of a branch; also the canvas for the visual floor plan.
+model DiningArea {
+  id        String    @id @default(uuid()) @db.Uuid
+  branchId  String    @db.Uuid
+  name      String
+  floor     Int       @default(1)
+  sortOrder Int       @default(0)
+  /// Canvas size in pixels for the floor-plan editor.
+  width     Int       @default(1200)
+  height    Int       @default(700)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  branch       Branch                  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tables       RestaurantTable[]
+  reservations RestaurantReservation[]
+
+  @@index([branchId])
+  @@map("dining_areas")
+}
+
+model RestaurantTable {
+  id               String      @id @default(uuid()) @db.Uuid
+  branchId         String      @db.Uuid
+  diningAreaId     String      @db.Uuid
+  tableNumber      String      @db.VarChar(16)
+  name             String?
+  section          String?
+  capacity         Int
+  status           TableStatus @default(AVAILABLE)
+  shape            TableShape  @default(SQUARE)
+  positionX        Int         @default(40)
+  positionY        Int         @default(40)
+  width            Int         @default(80)
+  height           Int         @default(80)
+  assignedWaiterId String?     @db.Uuid
+  notes            String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  deletedAt        DateTime?
+
+  branch          Branch                  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  diningArea      DiningArea              @relation(fields: [diningAreaId], references: [id], onDelete: Restrict)
+  assignedWaiter  User?                   @relation(fields: [assignedWaiterId], references: [id], onDelete: SetNull)
+  reservations    RestaurantReservation[]
+  orders          Order[]
+  serviceRequests ServiceRequest[]
+
+  @@index([branchId, status])
+  @@index([diningAreaId])
+  @@index([assignedWaiterId])
+  @@map("restaurant_tables")
+}
+
+model PrivateDiningRoom {
+  id            String    @id @default(uuid()) @db.Uuid
+  branchId      String    @db.Uuid
+  name          String
+  description   String?
+  capacity      Int
+  minimumGuests Int       @default(1)
+  maximumGuests Int
+  images        String[]
+  amenities     String[]
+  minimumSpend  Decimal   @default(0) @db.Decimal(12, 2)
+  hourlyRate    Decimal   @default(0) @db.Decimal(12, 2)
+  deposit       Decimal   @default(0) @db.Decimal(12, 2)
+  /// Same shape as Branch.openingHours.
+  openingTimes  Json?
+  specialRules  String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  branch       Branch                  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  reservations RestaurantReservation[]
+
+  @@index([branchId])
+  @@map("private_dining_rooms")
+}
+
+// ───────────────────────── Menu ─────────────────────────
+
+enum AvailabilityStatus {
+  AVAILABLE
+  SOLD_OUT
+  TEMPORARILY_UNAVAILABLE
+}
+
+enum MealPeriod {
+  BREAKFAST
+  LUNCH
+  DINNER
+}
+
+enum KitchenStation {
+  MAIN_KITCHEN
+  GRILL
+  PIZZA
+  DESSERT
+  BEVERAGE
+  BAR
+}
+
+model MenuCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model Allergen {
+  id   String @id @default(uuid()) @db.Uuid
+  name String @unique
+
+  items MenuItem[]
+
+  @@map("allergens")
+}
+
+model MenuItem {
+  id               String             @id @default(uuid()) @db.Uuid
+  branchId         String             @db.Uuid
+  categoryId       String             @db.Uuid
+  name             String
+  /// Unique per branch among non-deleted items (partial unique index, see migrations).
+  slug             String
+  description      String?
+  shortDescription String?
+  price            Decimal            @db.Decimal(10, 2)
+  comparePrice     Decimal?           @db.Decimal(10, 2)
+  costPrice        Decimal?           @db.Decimal(10, 2)
+  image            String?
+  gallery          String[]
+  preparationTime  Int?
+  calories         Int?
+  spiceLevel       Int                @default(0)
+  vegetarian       Boolean            @default(false)
+  vegan            Boolean            @default(false)
+  halal            Boolean            @default(false)
+  featured         Boolean            @default(false)
+  popular          Boolean            @default(false)
+  newItem          Boolean            @default(false)
+  availability     AvailabilityStatus @default(AVAILABLE)
+  /// Empty = served all day.
+  mealPeriods      MealPeriod[]
+  kitchenStation   KitchenStation     @default(MAIN_KITCHEN)
+  tags             String[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  deletedAt        DateTime?
+
+  branch     Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  category   MenuCategory        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  allergens  Allergen[]
+  modifiers  MenuItemModifier[]
+  orderItems OrderItem[]
+  favourites CustomerFavourite[]
+
+  @@index([branchId, categoryId])
+  @@index([branchId, availability])
+  @@map("menu_items")
+}
+
+// ───────────────────────── Reservations ─────────────────────────
+
+enum ReservationType {
+  TABLE
+  PRIVATE_DINING
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  SEATED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+/// Table and private-dining bookings. Double-booking is prevented by exclusion constraints
+/// (see migrations): no two active reservations may overlap on the same table / room.
+model RestaurantReservation {
+  id               String            @id @default(uuid()) @db.Uuid
+  reference        String            @unique @db.VarChar(12)
+  type             ReservationType
+  status           ReservationStatus @default(PENDING)
+  branchId         String            @db.Uuid
+  tableId          String?           @db.Uuid
+  privateRoomId    String?           @db.Uuid
+  diningAreaId     String?           @db.Uuid
+  userId           String?           @db.Uuid
+  createdByStaffId String?           @db.Uuid
+  guestName        String
+  guestEmail       String
+  guestPhone       String
+  partySize        Int
+  /// Stored in UTC.
+  startsAt         DateTime
+  endsAt           DateTime
+  specialRequest   String?
+  occasion         String?
+  depositAmount    Decimal?          @db.Decimal(12, 2)
+  estimatedCost    Decimal?          @db.Decimal(12, 2)
+  cancelledAt      DateTime?
+  cancelReason     String?
+  /// Set once the customer has been reminded, so a job re-run never reminds twice.
+  reminderSentAt   DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  branch      Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  table       RestaurantTable?   @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  privateRoom PrivateDiningRoom? @relation(fields: [privateRoomId], references: [id], onDelete: SetNull)
+  diningArea  DiningArea?        @relation(fields: [diningAreaId], references: [id], onDelete: SetNull)
+  user        User?              @relation("CustomerReservations", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([branchId, startsAt])
+  @@index([userId, startsAt])
+  @@index([tableId, startsAt])
+  @@index([privateRoomId, startsAt])
+  @@map("restaurant_reservations")
+}
+
+// ───────────────────────── Accommodation ─────────────────────────
+
+enum BedType {
+  SINGLE
+  TWIN
+  DOUBLE
+  QUEEN
+  KING
+}
+
+enum RoomTypeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum RoomStatus {
+  AVAILABLE
+  RESERVED
+  OCCUPIED
+  CLEANING
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+enum HousekeepingStatus {
+  CLEAN
+  DIRTY
+  CLEANING
+  INSPECTION
+  MAINTENANCE
+}
+
+enum HousekeepingTaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+enum HousekeepingTaskType {
+  CHECKOUT_CLEAN
+  ROUTINE
+  MAINTENANCE
+}
+
+enum ExtraPricingMode {
+  PER_STAY
+  PER_NIGHT
+  PER_GUEST
+}
+
+enum RoomBookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum RoomPaymentStatus {
+  UNPAID
+  DEPOSIT_PAID
+  PAID
+  REFUNDED
+}
+
+model RoomType {
+  id            String         @id @default(uuid()) @db.Uuid
+  branchId      String         @db.Uuid
+  name          String
+  /// Unique per branch among non-deleted room types (partial unique index, see migrations).
+  slug          String
+  description   String?
+  maximumGuests Int
+  bedType       BedType
+  numberOfBeds  Int            @default(1)
+  roomSize      Int?
+  basePrice     Decimal        @db.Decimal(12, 2)
+  weekendPrice  Decimal?       @db.Decimal(12, 2)
+  images        String[]
+  amenities     String[]
+  status        RoomTypeStatus @default(ACTIVE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+
+  branch   Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  rooms    Room[]
+  bookings RoomBooking[]
+
+  @@index([branchId, status])
+  @@map("room_types")
+}
+
+model Room {
+  id                 String             @id @default(uuid()) @db.Uuid
+  roomTypeId         String             @db.Uuid
+  branchId           String             @db.Uuid
+  /// Unique per branch among non-deleted rooms (partial unique index, see migrations).
+  roomNumber         String             @db.VarChar(16)
+  floor              Int                @default(1)
+  status             RoomStatus         @default(AVAILABLE)
+  housekeepingStatus HousekeepingStatus @default(CLEAN)
+  notes              String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  deletedAt          DateTime?
+
+  roomType RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
+  branch   Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  bookings RoomBooking[]
+  tasks    HousekeepingTask[]
+  orders   Order[]
+
+  @@index([branchId, status])
+  @@index([roomTypeId])
+  @@map("rooms")
+}
+
+model RoomExtra {
+  id          String           @id @default(uuid()) @db.Uuid
+  branchId    String           @db.Uuid
+  name        String
+  description String?
+  price       Decimal          @db.Decimal(12, 2)
+  pricingMode ExtraPricingMode @default(PER_STAY)
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([branchId])
+  @@map("room_extras")
+}
+
+/// Guest-room stays. A booking is assigned a physical room when created; an exclusion constraint
+/// (see migrations) guarantees no two active bookings overlap on the same room.
+model RoomBooking {
+  id               String            @id @default(uuid()) @db.Uuid
+  reference        String            @unique @db.VarChar(12)
+  branchId         String            @db.Uuid
+  roomTypeId       String            @db.Uuid
+  roomId           String?           @db.Uuid
+  userId           String?           @db.Uuid
+  createdByStaffId String?           @db.Uuid
+  guestName        String
+  guestEmail       String
+  guestPhone       String
+  /// Calendar dates in the branch's timezone.
+  checkInDate      DateTime          @db.Date
+  checkOutDate     DateTime          @db.Date
+  nightCount       Int
+  adultCount       Int
+  childCount       Int               @default(0)
+  roomSubtotal     Decimal           @db.Decimal(12, 2)
+  extrasTotal      Decimal           @default(0) @db.Decimal(12, 2)
+  taxes            Decimal           @default(0) @db.Decimal(12, 2)
+  discount         Decimal           @default(0) @db.Decimal(12, 2)
+  total            Decimal           @db.Decimal(12, 2)
+  deposit          Decimal           @default(0) @db.Decimal(12, 2)
+  paymentStatus    RoomPaymentStatus @default(UNPAID)
+  bookingStatus    RoomBookingStatus @default(CONFIRMED)
+  specialRequests  String?
+  cancelledAt      DateTime?
+  checkedInAt      DateTime?
+  checkedOutAt     DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  branch   Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  roomType RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
+  room     Room?              @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user     User?              @relation("CustomerRoomBookings", fields: [userId], references: [id], onDelete: SetNull)
+  guests   RoomBookingGuest[]
+  extras   RoomBookingExtra[]
+  orders   Order[]
+  bills    Bill[]
+  payments Payment[]
+  reviews  Review[]
+
+  @@index([branchId, checkInDate])
+  @@index([branchId, checkOutDate])
+  @@index([roomId, checkInDate])
+  @@index([userId, checkInDate])
+  @@map("room_bookings")
+}
+
+model RoomBookingGuest {
+  id        String  @id @default(uuid()) @db.Uuid
+  bookingId String  @db.Uuid
+  name      String
+  isChild   Boolean @default(false)
+
+  booking RoomBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("room_booking_guests")
+}
+
+/// Snapshot of an extra at booking time, so later price edits never change past bookings.
+model RoomBookingExtra {
+  id        String  @id @default(uuid()) @db.Uuid
+  bookingId String  @db.Uuid
+  name      String
+  unitPrice Decimal @db.Decimal(12, 2)
+  quantity  Int     @default(1)
+  total     Decimal @db.Decimal(12, 2)
+
+  booking RoomBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("room_booking_extras")
+}
+
+model HousekeepingTask {
+  id           String                 @id @default(uuid()) @db.Uuid
+  roomId       String                 @db.Uuid
+  branchId     String                 @db.Uuid
+  type         HousekeepingTaskType   @default(CHECKOUT_CLEAN)
+  status       HousekeepingTaskStatus @default(OPEN)
+  assignedToId String?                @db.Uuid
+  notes        String?
+  createdAt    DateTime               @default(now())
+  completedAt  DateTime?
+
+  room       Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  branch     Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  assignedTo User?  @relation("AssignedHousekeeping", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([branchId, status])
+  @@index([roomId])
+  @@map("housekeeping_tasks")
+}
+
+// ───────────────────────── Orders ─────────────────────────
+
+enum OrderType {
+  DINE_IN
+  ROOM_SERVICE
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT_TO_KITCHEN
+  PREPARING
+  PARTIALLY_READY
+  READY_TO_SERVE
+  PARTIALLY_SERVED
+  SERVED
+  PAYMENT_REQUESTED
+  PAID
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  VOID
+}
+
+enum OrderItemStatus {
+  PENDING
+  PREPARING
+  PREPARED
+  SERVED
+  CANCELLED
+}
+
+/// Optional choices for a dish ("Extra cheese", "Well done").
+model MenuItemModifier {
+  id         String   @id @default(uuid()) @db.Uuid
+  menuItemId String   @db.Uuid
+  name       String
+  priceDelta Decimal  @default(0) @db.Decimal(10, 2)
+  isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@index([menuItemId])
+  @@map("menu_item_modifiers")
+}
+
+model Order {
+  id                  String      @id @default(uuid()) @db.Uuid
+  /// "YYYYMMDD-NNN", sequential per branch and day (unique per branch).
+  orderNumber         String      @db.VarChar(20)
+  branchId            String      @db.Uuid
+  type                OrderType
+  status              OrderStatus @default(DRAFT)
+  tableId             String?     @db.Uuid
+  roomId              String?     @db.Uuid
+  roomBookingId       String?     @db.Uuid
+  waiterId            String      @db.Uuid
+  /// Set when a signed-in customer placed the order themselves from the table.
+  placedByUserId      String?     @db.Uuid
+  guestName           String?
+  guestCount          Int?
+  kitchenInstructions String?
+  subtotal            Decimal     @default(0) @db.Decimal(12, 2)
+  sentToKitchenAt     DateTime?
+  servedAt            DateTime?
+  paymentRequestedAt  DateTime?
+  cancelledAt         DateTime?
+  cancelReason        String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  branch      Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  table       RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  room        Room?            @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  roomBooking RoomBooking?     @relation(fields: [roomBookingId], references: [id], onDelete: SetNull)
+  waiter      User             @relation("OrderWaiter", fields: [waiterId], references: [id], onDelete: Restrict)
+  placedBy    User?            @relation("OrderPlacedBy", fields: [placedByUserId], references: [id], onDelete: SetNull)
+  items       OrderItem[]
+  history     OrderHistory[]
+  bill        Bill?
+
+  @@unique([branchId, orderNumber])
+  @@index([branchId, status])
+  @@index([tableId, status])
+  @@index([waiterId])
+  @@index([placedByUserId])
+  @@index([branchId, createdAt])
+  @@index([roomBookingId])
+  @@index([roomId])
+  @@map("orders")
+}
+
+/// A line on an order. Name, price, station and allergens are snapshots taken when it was added,
+/// so later menu edits never change an existing order.
+model OrderItem {
+  id              String          @id @default(uuid()) @db.Uuid
+  orderId         String          @db.Uuid
+  menuItemId      String?         @db.Uuid
+  name            String
+  /// Menu price plus the chosen modifiers.
+  unitPrice       Decimal         @db.Decimal(10, 2)
+  quantity        Int             @default(1)
+  notes           String?
+  status          OrderItemStatus @default(PENDING)
+  station         KitchenStation  @default(MAIN_KITCHEN)
+  allergens       String[]
+  preparationTime Int?
+  round           Int             @default(1)
+  startedAt       DateTime?
+  preparedAt      DateTime?
+  servedAt        DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+  createdAt       DateTime        @default(now())
+
+  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem  MenuItem?           @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  modifiers OrderItemModifier[]
+
+  @@index([orderId])
+  @@index([status, station])
+  @@map("order_items")
+}
+
+model OrderItemModifier {
+  id          String  @id @default(uuid()) @db.Uuid
+  orderItemId String  @db.Uuid
+  name        String
+  priceDelta  Decimal @default(0) @db.Decimal(10, 2)
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+  @@map("order_item_modifiers")
+}
+
+model OrderHistory {
+  id         String       @id @default(uuid()) @db.Uuid
+  orderId    String       @db.Uuid
+  userId     String?      @db.Uuid
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  note       String?
+  createdAt  DateTime     @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User? @relation("OrderHistoryUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@map("order_history")
+}
+
+// ───────────────────────── Billing & payments ─────────────────────────
+
+enum BillStatus {
+  OPEN
+  PAID
+  REFUNDED
+  VOID
+}
+
+enum DiscountType {
+  PERCENT
+  AMOUNT
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  MOBILE_PAYMENT
+  BANK_TRANSFER
+  ROOM_CHARGE
+  LOYALTY_POINTS
+}
+
+/// One bill per order. Rates are snapshotted from company settings when it is raised, so later rate
+/// changes never alter an existing bill. Financial rows are never deleted by application code.
+model Bill {
+  id                   String        @id @default(uuid()) @db.Uuid
+  /// "B-YYYYMMDD-NNN", sequential per branch and day.
+  billNumber           String        @db.VarChar(24)
+  branchId             String        @db.Uuid
+  orderId              String        @unique @db.Uuid
+  status               BillStatus    @default(OPEN)
+  subtotal             Decimal       @db.Decimal(12, 2)
+  discountType         DiscountType?
+  discountValue        Decimal       @default(0) @db.Decimal(12, 2)
+  discountAmount       Decimal       @default(0) @db.Decimal(12, 2)
+  discountReason       String?
+  discountById         String?       @db.Uuid
+  serviceChargePercent Decimal       @db.Decimal(5, 2)
+  serviceChargeAmount  Decimal       @default(0) @db.Decimal(12, 2)
+  taxPercent           Decimal       @db.Decimal(5, 2)
+  taxAmount            Decimal       @default(0) @db.Decimal(12, 2)
+  total                Decimal       @db.Decimal(12, 2)
+  paidAmount           Decimal       @default(0) @db.Decimal(12, 2)
+  refundedAmount       Decimal       @default(0) @db.Decimal(12, 2)
+  currency             String        @db.VarChar(3)
+  roomBookingId        String?       @db.Uuid
+  createdById          String?       @db.Uuid
+  paidAt               DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  branch              Branch               @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order               Order                @relation(fields: [orderId], references: [id], onDelete: NoAction)
+  roomBooking         RoomBooking?         @relation(fields: [roomBookingId], references: [id], onDelete: SetNull)
+  createdBy           User?                @relation("BillCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  payments            Payment[]
+  refunds             Refund[]
+  receipt             Receipt?
+  customerId          String?              @db.Uuid
+  promotionId         String?              @db.Uuid
+  /// Points redeemed against this bill (a LOYALTY_POINTS payment) and earned when it was paid.
+  pointsEarned        Int                  @default(0)
+  customer            User?                @relation("BillCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  promotion           Promotion?           @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  loyaltyTransactions LoyaltyTransaction[]
+  reviews             Review[]
+
+  @@unique([branchId, billNumber])
+  @@index([branchId, status])
+  @@index([branchId, paidAt])
+  @@index([customerId])
+  @@index([roomBookingId])
+  @@map("bills")
+}
+
+/// One settlement of (part of) a bill. Split bills are simply several payments on one bill.
+model Payment {
+  id            String        @id @default(uuid()) @db.Uuid
+  billId        String        @db.Uuid
+  branchId      String        @db.Uuid
+  method        PaymentMethod
+  /// The part of the bill this payment settled (never includes change).
+  amount        Decimal       @db.Decimal(12, 2)
+  /// Cash handed over (CASH only); change = tendered − amount.
+  tendered      Decimal?      @db.Decimal(12, 2)
+  changeGiven   Decimal?      @db.Decimal(12, 2)
+  reference     String?
+  roomBookingId String?       @db.Uuid
+  cashierId     String        @db.Uuid
+  createdAt     DateTime      @default(now())
+
+  bill        Bill         @relation(fields: [billId], references: [id], onDelete: Cascade)
+  branch      Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  roomBooking RoomBooking? @relation(fields: [roomBookingId], references: [id], onDelete: SetNull)
+  cashier     User         @relation("PaymentCashier", fields: [cashierId], references: [id], onDelete: Restrict)
+  refunds     Refund[]
+
+  @@index([branchId, createdAt])
+  @@index([billId])
+  @@index([cashierId, createdAt])
+  @@map("payments")
+}
+
+model Refund {
+  id        String   @id @default(uuid()) @db.Uuid
+  paymentId String   @db.Uuid
+  billId    String   @db.Uuid
+  amount    Decimal  @db.Decimal(12, 2)
+  reason    String
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  bill    Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  user    User    @relation("RefundUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId])
+  @@index([billId])
+  @@index([createdAt])
+  @@map("refunds")
+}
+
+/// Issued once a bill is fully paid. `data` is an immutable snapshot of the receipt as printed.
+model Receipt {
+  id            String   @id @default(uuid()) @db.Uuid
+  billId        String   @unique @db.Uuid
+  branchId      String   @db.Uuid
+  /// "R-YYYYMMDD-NNN", sequential per branch and day.
+  receiptNumber String   @db.VarChar(24)
+  data          Json
+  issuedAt      DateTime @default(now())
+
+  bill   Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, receiptNumber])
+  @@map("receipts")
+}
+
+// ───────────────────────── Inventory ─────────────────────────
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum StockTransactionType {
+  PURCHASE
+  USE
+  WASTE
+  ADJUSTMENT
+  TRANSFER
+  RETURN
+}
+
+model Supplier {
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  /// What they supply, as free-text tags ("rice", "cleaning products").
+  products      String[]
+  status        SupplierStatus @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+
+  items InventoryItem[]
+
+  @@map("suppliers")
+}
+
+model InventoryItem {
+  id              String    @id @default(uuid()) @db.Uuid
+  branchId        String    @db.Uuid
+  name            String
+  sku             String    @db.VarChar(40)
+  category        String
+  unit            String    @db.VarChar(16)
+  quantity        Decimal   @default(0) @db.Decimal(12, 3)
+  minimumQuantity Decimal   @default(0) @db.Decimal(12, 3)
+  /// Cost per unit.
+  cost            Decimal   @default(0) @db.Decimal(12, 2)
+  supplierId      String?   @db.Uuid
+  expiryDate      DateTime? @db.Date
+  storageLocation String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  branch       Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  supplier     Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  transactions StockTransaction[]
+
+  @@unique([branchId, sku])
+  @@index([branchId, category])
+  @@map("inventory_items")
+}
+
+/// Append-only audit trail of every stock movement. `quantityChange` is signed.
+model StockTransaction {
+  id             String               @id @default(uuid()) @db.Uuid
+  itemId         String               @db.Uuid
+  branchId       String               @db.Uuid
+  type           StockTransactionType
+  quantityChange Decimal              @db.Decimal(12, 3)
+  quantityAfter  Decimal              @db.Decimal(12, 3)
+  unitCost       Decimal?             @db.Decimal(12, 2)
+  reference      String?
+  note           String?
+  /// For transfers: the matching transaction in the other branch.
+  counterpartId  String?              @db.Uuid
+  userId         String?              @db.Uuid
+  createdAt      DateTime             @default(now())
+
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  branch Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  user   User?         @relation("StockUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([itemId, createdAt])
+  @@index([branchId, createdAt])
+  @@map("stock_transactions")
+}
+
+// ───────────────────────── Customers & loyalty ─────────────────────────
+
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  ADJUST
+  REFUND
+}
+
+/// CRM details for a customer account. Visit counts and spend are computed from paid bills, never stored.
+model CustomerProfile {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @unique @db.Uuid
+  birthday           DateTime? @db.Date
+  address            String?
+  preferences        String?
+  dietaryPreferences String[]
+  allergies          String[]
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation("CustomerProfileUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("customer_profiles")
+}
+
+model CustomerFavourite {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  menuItemId String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  user     User     @relation("CustomerFavouriteUser", fields: [userId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, menuItemId])
+  @@map("customer_favourites")
+}
+
+model LoyaltyAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @unique @db.Uuid
+  points         Int      @default(0)
+  lifetimePoints Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User                 @relation("LoyaltyAccountUser", fields: [userId], references: [id], onDelete: Cascade)
+  transactions LoyaltyTransaction[]
+
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyTransaction {
+  id           String                 @id @default(uuid()) @db.Uuid
+  accountId    String                 @db.Uuid
+  type         LoyaltyTransactionType
+  /// Signed: positive earns, negative spends.
+  points       Int
+  balanceAfter Int
+  billId       String?                @db.Uuid
+  note         String?
+  userId       String?                @db.Uuid
+  createdAt    DateTime               @default(now())
+
+  account LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  bill    Bill?          @relation(fields: [billId], references: [id], onDelete: SetNull)
+  user    User?          @relation("LoyaltyStaff", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([accountId, createdAt])
+  @@map("loyalty_transactions")
+}
+
+// ───────────────────────── Promotions ─────────────────────────
+
+enum PromotionType {
+  PERCENTAGE
+  FIXED
+  HAPPY_HOUR
+  LOYALTY_MULTIPLIER
+  RESERVATION_OFFER
+  ROOM_OFFER
+  SEASONAL_OFFER
+}
+
+/// PERCENTAGE / FIXED / HAPPY_HOUR discount a bill; LOYALTY_MULTIPLIER scales points earned; the
+/// *_OFFER types are shown to guests on the Offers page.
+model Promotion {
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String
+  description  String?
+  /// Upper-case code a cashier enters. Null for automatic or display-only promotions.
+  code         String?       @unique
+  type         PromotionType
+  /// Percent, amount or multiplier, depending on `type`.
+  value        Decimal       @default(0) @db.Decimal(10, 2)
+  startsOn     DateTime?     @db.Date
+  endsOn       DateTime?     @db.Date
+  minimumSpend Decimal       @default(0) @db.Decimal(12, 2)
+  usageLimit   Int?
+  usedCount    Int           @default(0)
+  /// Empty = every branch.
+  branchIds    String[]      @db.Uuid
+  /// Empty = every customer.
+  customerIds  String[]      @db.Uuid
+  /// Happy hour: ISO weekdays 1 (Mon) – 7 (Sun); empty = every day.
+  daysOfWeek   Int[]
+  startTime    String?       @db.VarChar(5)
+  endTime      String?       @db.VarChar(5)
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+
+  bills Bill[]
+
+  @@index([active, type])
+  @@map("promotions")
+}
+
+// ───────────────────────── Reviews ─────────────────────────
+
+enum ReviewKind {
+  DINING
+  STAY
+}
+
+enum ReviewStatus {
+  PUBLISHED
+  HIDDEN
+}
+
+/// A guest review, tied to a paid bill (dining) or a checked-out booking (stay), so every review is verified.
+model Review {
+  id            String       @id @default(uuid()) @db.Uuid
+  userId        String       @db.Uuid
+  branchId      String       @db.Uuid
+  kind          ReviewKind
+  billId        String?      @unique @db.Uuid
+  bookingId     String?      @unique @db.Uuid
+  rating        Int
+  comment       String?
+  status        ReviewStatus @default(PUBLISHED)
+  response      String?
+  respondedById String?      @db.Uuid
+  respondedAt   DateTime?
+  createdAt     DateTime     @default(now())
+
+  user        User         @relation("ReviewAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  branch      Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  bill        Bill?        @relation(fields: [billId], references: [id], onDelete: SetNull)
+  booking     RoomBooking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  respondedBy User?        @relation("ReviewResponder", fields: [respondedById], references: [id], onDelete: SetNull)
+
+  @@index([branchId, status, createdAt])
+  @@map("reviews")
+}
+
+// ───────────────────────── Notifications & audit ─────────────────────────
+
+/// One row per recipient. `type` is one of the NOTIFICATION_TYPES in packages/shared.
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  branchId  String?   @db.Uuid
+  type      String    @db.VarChar(40)
+  title     String
+  body      String?
+  /// In-app path the notification opens, e.g. "/app/orders/<id>".
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+/// Append-only record of sensitive actions. The actor's name and role are copied in so the entry
+/// stays meaningful after the account is changed or removed.
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @db.Uuid
+  userName      String?
+  role          String?  @db.VarChar(20)
+  action        String   @db.VarChar(60)
+  entity        String   @db.VarChar(40)
+  entityId      String?
+  branchId      String?  @db.Uuid
+  previousValue Json?
+  newValue      Json?
+  ip            String?
+  createdAt     DateTime @default(now())
+
+  user User? @relation("AuditActor", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+  @@index([branchId, createdAt])
+  @@map("audit_logs")
+}
+
+// ───────────────────────── Guest service requests ─────────────────────────
+
+enum ServiceRequestStatus {
+  OPEN
+  RESOLVED
+}
+
+/// A guest at a table asked for something (water, help, the bill). Staff log it; the table's
+/// waiter is told live. Users are kept as plain ids so a request outlives the account.
+model ServiceRequest {
+  id           String               @id @default(uuid()) @db.Uuid
+  branchId     String               @db.Uuid
+  tableId      String               @db.Uuid
+  type         String               @db.VarChar(20)
+  note         String?
+  status       ServiceRequestStatus @default(OPEN)
+  createdById  String?              @db.Uuid
+  resolvedById String?              @db.Uuid
+  resolvedAt   DateTime?
+  createdAt    DateTime             @default(now())
+
+  branch Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  table  RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([branchId, status, createdAt])
+  @@index([tableId, status])
+  @@map("service_requests")
+}

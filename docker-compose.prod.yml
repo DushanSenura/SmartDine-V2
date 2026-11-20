@@ -1,0 +1,18 @@
+# Production overrides. Use together with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# - The database is reachable only from the api container (no published port).
+# - Cookies are Secure (the site must be served over https:// by the proxy in front).
+# - Containers get a log size cap so a busy day cannot fill the disk.
+services:
+  postgres:
+    ports: !reset []
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+  api:
+    environment:
+      COOKIE_SECURE: "true"
+    logging: *logging
+  web:
+    logging: *logging

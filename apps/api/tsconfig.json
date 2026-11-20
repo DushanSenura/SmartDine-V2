@@ -1,0 +1,4 @@
+{
+  "extends": "@smartdine/tsconfig/node.json",
+  "include": ["src", "prisma", "tests", "vitest.config.ts", "tsup.config.ts"]
+}
